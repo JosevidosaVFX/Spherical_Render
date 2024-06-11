@@ -1,0 +1,133 @@
+def destroy_cam():
+    """Removes scene elements as null"""
+    
+    n = hou.node('/obj')
+    #Gets the children inside /obj.
+    nodes_to_delete = n.children()
+    #Compare the names of the nodes and if they match, remove them.
+    for null in nodes_to_delete:
+        if null.type().name() == "null":
+            null.destroy()        
+
+def get_points():
+    """Obtain the numbers of geometry points,
+        to obtain the position of each of the cameras with respect
+        to the points.
+          
+    :type: <hou.Geometry>        
+    """  
+    
+    node = hou.pwd()
+    root = hou.node('/obj')
+    
+   
+    #Call the destroy_cam() function
+    destroy_cam()
+    color = hou.Color(0.211,0.436,0.436)
+    netbox = hou.item("/obj/__netbox1")
+    if netbox:
+        netbox.destroy("True")
+    netbox1 =root.createNetworkBox()
+    netbox1.setColor(color)
+    netbox1.setComment("CAMERAS")
+        
+    null = root.createNode("null","look_at")
+    null.parm("use_dcolor").set(0)
+    null.parm("geoscale").set(0)
+
+    
+    num_points = hou.pwd().node("sphere1").geometry().points()
+    
+    #Loop that obtains the number of points.
+    for pt in num_points:
+        #Gets the position of each point        
+        position =pt.position()
+        #Create cameras with the position obtained in Position.
+        cameras = node.parent().createNode("cam")        
+        cams_t = cameras.parmTuple("t").set(position)
+
+        #Set new values in parameters.
+        cam_parm = cameras.parm("constraints_on")
+        cam_cons = cameras.parm("constraints_path")
+        camp_parm_on = cam_parm.set(1)
+        cons = cam_cons.set("constraints")
+        
+        #Orient each camera towards the null.
+        create_chop = cameras.createNode("chopnet","constraints")        
+        look_at = create_chop.createNode("constraintlookat","look_at")        
+        cons_obj = create_chop.createNode("constraintobject","null1")
+        cons_obj_set = cons_obj.parm("obj_path").set("../../../look_at")
+        
+        get_world = create_chop.createNode("constraintgetworldspace",
+            "getWspace"
+            )
+        get_world_set = get_world.parm("obj_path").set("../..")
+        
+        #Connect CHOP nodes to each other.
+        look_at.setInput(0,get_world)
+        look_at.setInput(1,cons_obj)
+        
+        #Organize the nodes.      
+        root.layoutChildren()
+        node.setColor(hou.Color((0, 1, 0 )))
+    
+    pos_vector2 = (2.0,-6.0)    
+    for node in root.children():
+        if node.type().name() == "cam":
+            netbox1.addItem(node)
+    netbox1.fitAroundContents()
+    netbox1.setPosition(pos_vector2)    
+            
+def get_cams():
+    """Gets a list of the number of cameras.
+    
+    :type:geo_camera
+    :return: list geo_cameras
+    
+    """
+    
+    cam_list = []
+    for n in hou.node("/obj/").children():
+        if n.type().name() == "cam":
+            cam_list.append(n)
+    #Returns the list with the cameras in scene.        
+    return cam_list    
+def read_path():
+     
+    return hou.pwd().parm("fileexportimages").evalAsString()
+    
+def read_frame_range():
+    start = hou.pwd().parm("frame_rangex").evalAsInt()
+    end = hou.pwd().parm("frame_rangey").evalAsInt()    
+    return start, end 
+  
+def create_opengl():
+    """ Create opengl in OUT Context and set each camera."""
+    camaras = get_cams()
+    select_path_export = read_path()
+    start, end = read_frame_range()
+    
+    
+    num_camaras = len(camaras)
+    for camera in range(num_camaras):
+        a = hou.pwd().parm("selectrange").evalAsInt()
+        
+        if a == 0:
+            
+            out = hou.node("/out")
+            ogl = out.createNode("opengl")
+            ogl.parm("picture").set(f"{select_path_export}cam{camera + 1}.$F4.exr")
+            ogl.parm("camera").set(f"/obj/cam{camera + 1}")            
+            ogl.parm("execute").pressButton()
+            ogl.destroy()
+        elif a == 1:
+            out = hou.node("/out")
+            ogl = out.createNode("opengl")
+            ogl.parm("picture").set(f"{select_path_export}cam{camera + 1}.$F4.exr")
+            ogl.parm("camera").set(f"/obj/cam{camera + 1}")
+            ogl.parm("trange").set(1)
+            ogl.parmTuple("f").deleteAllKeyframes()
+            ogl.parm("f1").set(f"{start}")
+            ogl.parm("f2").set(f"{end}")
+            ogl.parm("execute").pressButton()
+            ogl.destroy() 
